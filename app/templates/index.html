@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconocimiento de Dígitos MNIST</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Reconocimiento de Dígitos</h1>
+    <canvas id="canvas" width="280" height="280"></canvas>
+    <br>
+    <button onclick="clearCanvas()">Limpiar</button>
+    <button onclick="predictDigit()">Predecir</button>
+    <p id="result"></p>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 15;
+
+        let drawing = false;
+
+        canvas.addEventListener('mousedown', e => { drawing = true; });
+        canvas.addEventListener('mouseup', e => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousemove', draw);
+
+        function draw(e) {
+            if (!drawing) return;
+            ctx.lineCap = 'round';
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(e.offsetX, e.offsetY);
+        }
+
+        function clearCanvas() {
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('result').innerText = "";
+        }
+
+        async function predictDigit() {
+            const image = canvas.toDataURL('image/png');
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image })
+            });
+            const result = await response.json();
+            if (result.digit !== undefined) {
+                document.getElementById('result').innerText = 
+                    `Predicción: ${result.digit} (Confianza: ${result.confidence}%)`;
+            } else {
+                document.getElementById('result').innerText = "Error: " + result.error;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -2,3 +2,5 @@ tensorflow>=2.10
 numpy
 matplotlib
 scikit-learn
+Flask
+Pillow
