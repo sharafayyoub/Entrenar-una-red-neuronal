@@ -29,12 +29,12 @@ def predict():
         if not data or 'image' not in data:
             return jsonify({"error": "No se ha enviado la imagen."})
 
-        # Quitar encabezado base64
+        # Quitar encabezado base64 si existe
         image_data = data['image']
         if "," in image_data:
             image_data = image_data.split(",")[1]
 
-        # Decodificar imagen
+        # Decodificar imagen y convertir a grayscale
         img = Image.open(BytesIO(base64.b64decode(image_data))).convert("L")
         print(f"🖼 Imagen original size: {img.size}, mode: {img.mode}")
 
@@ -47,16 +47,12 @@ def predict():
         # Redimensionar a 28x28
         img = img.resize((28, 28), resample_mode)
 
-        # Convertir a array (grayscale)
-        arr = img_to_array(img)
+        # Convertir a array y normalizar
+        arr = img_to_array(img).astype("float32") / 255.0
         print("📐 after img_to_array shape:", arr.shape, "min/max:", arr.min(), arr.max())
 
-        # Normalizar a 0-1
-        arr = arr.astype("float32") / 255.0
-
-        # Asegurar batch y canales
-        x1 = np.expand_dims(arr, axis=0)  # (1,28,28,1)
-        x2 = np.transpose(x1, (0, 3, 1, 2))  # (1,1,28,28)
+        # Aplanar a vector de 784 (1, 28*28)
+        arr = arr.reshape(1, 28*28)
 
         # Obtener modelo
         model = current_app.config.get("MODEL", None)
@@ -64,31 +60,18 @@ def predict():
             print("❌ Modelo no cargado en current_app.config['MODEL']")
             return jsonify({"error": "Modelo no cargado en servidor."})
 
-        # Intentar predecir
-        preds = None
-        try:
-            print("▶ Probando predicción con shape", x1.shape)
-            preds = model.predict(x1)
-            print("✅ Predicción OK con channels_last")
-        except Exception as e:
-            print("⚠️ Fallo con channels_last:", e)
-            try:
-                print("▶ Probando predicción con shape", x2.shape)
-                preds = model.predict(x2)
-                print("✅ Predicción OK con channels_first")
-            except Exception as e2:
-                print("❌ Fallo predicción con ambos formatos:", e2)
-                return jsonify({"error": f"Error en predict: {e2}"})
-
+        # Predecir
+        preds = model.predict(arr)
         preds = np.asarray(preds)
         if preds.ndim == 2:
             preds = preds[0]
+
         digit = int(np.argmax(preds))
         confidence = float(np.max(preds)) * 100
 
         print(f"🔎 Resultado: {digit} con confianza {confidence:.2f}%")
 
-        # 🔥 Guardar en Firebase
+        # Guardar en Firebase
         db.collection("predicciones").add({
             "resultado": str(digit),
             "confianza": confidence,
@@ -100,6 +83,7 @@ def predict():
     except Exception as e:
         print("❌ Exception en /predict:", e)
         return jsonify({"error": str(e)})
+
 
 
 # ==============================
