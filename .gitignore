@@ -6,3 +6,4 @@ models/
 *.h5
 .ipynb_checkpoints/
 .vscode/
+app/firebase_key.json

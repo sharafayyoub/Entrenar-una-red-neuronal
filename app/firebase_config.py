@@ -2,7 +2,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # Ruta al archivo de credenciales de Firebase
-cred = credentials.Certificate("app/firebase_key.json")
+cred = credentials.Certificate("firebase_key.json")
 
 
 # Inicializar Firebase solo una vez
