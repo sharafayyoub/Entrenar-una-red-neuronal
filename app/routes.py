@@ -34,7 +34,11 @@ def predict():
         # Asegurar fondo negro y figura blanca:
         # Nuestro canvas pinta blanco sobre negro, si tu modelo espera fondo negro no invertimos.
         # Pero si ves predicciones raras, prueba invert=True abajo.
-        image = image.resize((28, 28), Image.ANTIALIAS)
+        from PIL import Image
+
+        # Usar LANCZOS para versiones nuevas
+        img = img.resize((28, 28), Image.Resampling.LANCZOS)
+
 
         # Opcional: centrar y normalizar contraste si es necesario
         # image = ImageOps.invert(image)  # descomenta si necesitas invertir
