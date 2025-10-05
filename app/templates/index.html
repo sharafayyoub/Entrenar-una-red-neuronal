@@ -2,60 +2,117 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reconocimiento de Dígitos MNIST</title>
+    <title>Reconocimiento de Dígitos</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <h1>Reconocimiento de Dígitos</h1>
     <canvas id="canvas" width="280" height="280"></canvas>
     <br>
-    <button onclick="clearCanvas()">Limpiar</button>
-    <button onclick="predictDigit()">Predecir</button>
+    <button id="clearBtn">Limpiar</button>
+    <button id="predictBtn">Predecir</button>
     <p id="result"></p>
+
+    <!-- ✅ Botón para guardar el resultado -->
+    <button id="saveBtn">Guardar en Firebase</button>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.strokeStyle = 'white';
-        ctx.lineWidth = 15;
+
+        function initCanvas() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+        }
+        initCanvas();
 
         let drawing = false;
-
-        canvas.addEventListener('mousedown', e => { drawing = true; });
-        canvas.addEventListener('mouseup', e => { drawing = false; ctx.beginPath(); });
+        canvas.addEventListener('mousedown', e => drawing = true);
+        canvas.addEventListener('mouseup', e => { drawing = false; ctx.beginPath(); autoPredict(); });
+        canvas.addEventListener('mouseout', e => { drawing = false; ctx.beginPath(); });
         canvas.addEventListener('mousemove', draw);
 
         function draw(e) {
             if (!drawing) return;
-            ctx.lineCap = 'round';
             ctx.lineTo(e.offsetX, e.offsetY);
             ctx.stroke();
             ctx.beginPath();
             ctx.moveTo(e.offsetX, e.offsetY);
         }
 
-        function clearCanvas() {
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            initCanvas();
             document.getElementById('result').innerText = "";
-        }
+        });
 
+        // 🔮 Función de predicción
         async function predictDigit() {
-            const image = canvas.toDataURL('image/png');
-            const response = await fetch('/predict', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image })
-            });
-            const result = await response.json();
-            if (result.digit !== undefined) {
-                document.getElementById('result').innerText = 
-                    `Predicción: ${result.digit} (Confianza: ${result.confidence}%)`;
-            } else {
-                document.getElementById('result').innerText = "Error: " + result.error;
+            try {
+                const dataURL = canvas.toDataURL('image/png');
+                console.log("📤 Enviando imagen al servidor...");
+                const resp = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({image: dataURL})
+                });
+                const json = await resp.json();
+                console.log("📥 Respuesta del servidor:", json);
+                if (json.error) {
+                    document.getElementById('result').innerText = "Error: " + json.error;
+                } else {
+                    document.getElementById('result').innerText =
+                        `Predicción: ${json.digit} (Confianza: ${json.confidence}%)`;
+
+                    // ✅ Guardar automáticamente la predicción para Firebase
+                    window.ultimaPrediccion = json; // guardamos para el botón
+                }
+            } catch (err) {
+                console.error("Fetch error:", err);
+                document.getElementById('result').innerText = "Error de red: " + err;
             }
         }
+
+        document.getElementById('predictBtn').addEventListener('click', predictDigit);
+
+        function autoPredict() {
+            setTimeout(() => { predictDigit(); }, 300);
+        }
+
+        // ✅ Guardar en Firebase (desde tu backend Flask)
+        async function guardarEnFirebase() {
+            if (!window.ultimaPrediccion) {
+                alert("Primero haz una predicción antes de guardar.");
+                return;
+            }
+
+            const { digit, confidence } = window.ultimaPrediccion;
+            const data = {
+                resultado: digit,
+                confianza: confidence,
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                const resp = await fetch("/save", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(data)
+                });
+                const json = await resp.json();
+                console.log("✅ Respuesta del servidor:", json);
+                alert("Datos guardados en Firebase correctamente ✅");
+            } catch (err) {
+                console.error("Error al guardar en Firebase:", err);
+                alert("Error al guardar en Firebase ❌");
+            }
+        }
+
+        // Asignar evento al botón de guardar
+        document.getElementById('saveBtn').addEventListener('click', guardarEnFirebase);
     </script>
 </body>
 </html>
+
